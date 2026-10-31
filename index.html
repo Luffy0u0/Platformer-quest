@@ -28,11 +28,54 @@
     .t-btn:active, .t-btn.active { background: rgba(255, 255, 255, 0.4); transform: scale(0.94); }
     .control-buttons { display: flex; gap: 8px; align-items: center; }
     .ctrl-icon-btn { background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255,255,255,0.2); color: white; width: 42px; height: 42px; border-radius: 10px; font-size: 1rem; display: flex; justify-content: center; align-items: center; cursor: pointer; pointer-events: auto; }
+
+    /* Estilos para el reproductor de cinemática */
+    #cutscene-overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh; height: 100dvh;
+      background: #000;
+      z-index: 100;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    #cutscene-video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #000;
+    }
+    #skip-cutscene-btn {
+      position: absolute;
+      bottom: 25px;
+      right: 25px;
+      background: rgba(15, 23, 42, 0.85);
+      border: 2px solid #facc15;
+      color: #facc15;
+      padding: 10px 20px;
+      font-weight: bold;
+      border-radius: 10px;
+      cursor: pointer;
+      z-index: 101;
+      backdrop-filter: blur(5px);
+      box-shadow: 0 0 15px rgba(250, 204, 21, 0.4);
+    }
   </style>
 </head>
 <body>
   <div id="game-container">
     <canvas id="canvas"></canvas>
+
+    <!-- CINEMÁTICA DE VIDEO MP4 -->
+    <div id="cutscene-overlay" class="hidden">
+      <video id="cutscene-video" playsinline preload="auto">
+        <source src="cinematica.mp4" type="video/mp4">
+        Tu navegador no soporta la reproducción de video.
+      </video>
+      <button id="skip-cutscene-btn" class="btn">SALTAR CINEMÁTICA ⏭️</button>
+    </div>
+
     <div id="hud">
       <div class="hud-box">VIDAS: <span class="lives" id="lives-display">❤️❤️❤️</span></div>
       <div class="hud-box" id="level-display">NIVEL 1</div>
@@ -359,7 +402,7 @@
               this.y = mp.y - this.h;
               this.vy = 0;
               this.grounded = true;
-              this.x += mp.vx; // Arrastrar con la plataforma móvil
+              this.x += mp.vx;
               if(!wasGrounded) createDustParticle(this.x + 14, this.y + 36);
             } else if (this.vy < 0) {
               this.y = mp.y + mp.h;
@@ -545,7 +588,6 @@
       const lvl = LEVELS[idx];
       const map = lvl.map;
 
-      // Agrupar bloques consecutivos 'M' horizontales en plataformas móviles
       for (let r = 0; r < map.length; r++) {
         let startM = -1;
         for (let c = 0; c <= map[r].length; c++) {
@@ -878,6 +920,34 @@
       }
     }
 
+    /* SISTEMA DE REPRODUCCIÓN DE CINEMÁTICA MP4 */
+    function playCutscene(onCompleteCallback) {
+      sound.stopMusic();
+      const overlay = document.getElementById('cutscene-overlay');
+      const video = document.getElementById('cutscene-video');
+      
+      overlay.classList.remove('hidden');
+      video.currentTime = 0;
+      
+      let playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.log("Reproducción automática bloqueada, requiriendo interacción", error);
+        });
+      }
+
+      function finishCutscene() {
+        video.pause();
+        overlay.classList.add('hidden');
+        video.removeEventListener('ended', finishCutscene);
+        document.getElementById('skip-cutscene-btn').removeEventListener('click', finishCutscene);
+        if (onCompleteCallback) onCompleteCallback();
+      }
+
+      video.addEventListener('ended', finishCutscene);
+      document.getElementById('skip-cutscene-btn').onclick = finishCutscene;
+    }
+
     window.addEventListener('keydown', e => {
       sound.init();
       if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
@@ -908,12 +978,17 @@
     setupTouch('btn-right', 'right');
     setupTouch('btn-jump', 'jump');
 
+    /* BOTÓN DE INICIO CON INTEGRACIÓN DE CINEMÁTICA */
     document.getElementById('start-btn').addEventListener('click', () => {
-      sound.init(); sound.startMusic();
-      lives = 3; currentLevelIndex = 0;
-      loadLevel(currentLevelIndex);
-      showOverlay(null);
-      gameState = 'PLAYING';
+      sound.init();
+      showOverlay(null); // Ocultar menú principal
+      
+      playCutscene(() => {
+        sound.startMusic();
+        lives = 3; currentLevelIndex = 0;
+        loadLevel(currentLevelIndex);
+        gameState = 'PLAYING';
+      });
     });
 
     document.getElementById('continue-btn').addEventListener('click', () => {
