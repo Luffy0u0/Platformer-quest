@@ -205,7 +205,10 @@
       canvasWidth = w;
       canvasHeight = h;
     }
-    window.addEventListener('resize', resizeCanvas); resizeCanvas();
+    window.addEventListener('resize', () => {
+      setTimeout(resizeCanvas, 200); // Da un pequeño respiro al navegador móvil al girar
+    });
+    resizeCanvas();
 
     const TILE_SIZE = 32;
 
