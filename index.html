@@ -29,7 +29,7 @@
     .control-buttons { display: flex; gap: 8px; align-items: center; }
     .ctrl-icon-btn { background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255,255,255,0.2); color: white; width: 42px; height: 42px; border-radius: 10px; font-size: 1rem; display: flex; justify-content: center; align-items: center; cursor: pointer; pointer-events: auto; }
 
-    /* Estilos para el reproductor de cinemática */
+    /* Estilos para el reproductor de cinemática interactiva */
     #cutscene-overlay {
       position: absolute;
       top: 0; left: 0;
@@ -61,18 +61,55 @@
       backdrop-filter: blur(5px);
       box-shadow: 0 0 15px rgba(250, 204, 21, 0.4);
     }
+    #cutscene-choices {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 102;
+      width: 90%;
+      max-width: 350px;
+    }
+    .choice-btn {
+      background: rgba(15, 23, 42, 0.9);
+      border: 2px solid #6366f1;
+      color: #fff;
+      padding: 12px 18px;
+      font-size: 1rem;
+      font-weight: bold;
+      border-radius: 12px;
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+      transition: all 0.2s ease;
+    }
+    .choice-btn:hover {
+      background: #4f46e5;
+      border-color: #facc15;
+      transform: scale(1.03);
+    }
   </style>
 </head>
 <body>
   <div id="game-container">
     <canvas id="canvas"></canvas>
 
-    <!-- CINEMÁTICA DE VIDEO MP4 -->
+    <!-- CINEMÁTICA INTERACTIVA DE VIDEO MP4 -->
     <div id="cutscene-overlay" class="hidden">
       <video id="cutscene-video" playsinline preload="auto">
         <source src="cinematica.mp4" type="video/mp4">
         Tu navegador no soporta la reproducción de video.
       </video>
+      <div id="cutscene-choices" style="display: none;">
+        <div style="color: #facc15; font-weight: bold; font-size: 1.1rem; text-shadow: 0 0 10px rgba(250,204,21,0.5); margin-bottom: 5px;">
+          ⚠️ ¡UN LOBO SALVAJE ACECHA! ¿QUÉ HACES?
+        </div>
+        <button class="choice-btn" id="choice-1">⚡ USAR PODER DEL FANTASMA</button>
+        <button class="choice-btn" id="choice-2">🏃 ENTRAR AL BOSQUE VALIENTEMENTE</button>
+      </div>
       <button id="skip-cutscene-btn" class="btn">SALTAR CINEMÁTICA ⏭️</button>
     </div>
 
@@ -206,7 +243,7 @@
       canvasHeight = h;
     }
     window.addEventListener('resize', () => {
-      setTimeout(resizeCanvas, 200); // Da un pequeño respiro al navegador móvil al girar
+      setTimeout(resizeCanvas, 200);
     });
     resizeCanvas();
 
@@ -923,32 +960,62 @@
       }
     }
 
-    /* SISTEMA DE REPRODUCCIÓN DE CINEMÁTICA MP4 */
+    /* SISTEMA DE CINEMÁTICA INTERACTIVA RAMIFICADA */
     function playCutscene(onCompleteCallback) {
       sound.stopMusic();
       const overlay = document.getElementById('cutscene-overlay');
       const video = document.getElementById('cutscene-video');
+      const choiceBox = document.getElementById('cutscene-choices');
       
+      choiceBox.style.display = 'none';
       overlay.classList.remove('hidden');
-      video.currentTime = 0;
       
-      let playPromise = video.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(error => {
-          console.log("Reproducción automática bloqueada, requiriendo interacción", error);
-        });
-      }
+      video.src = "cinematica.mp4";
+      video.currentTime = 0;
+      video.play();
 
-      function finishCutscene() {
+      let interactiveTriggered = false;
+      const timeCheckHandler = () => {
+        if (video.currentTime >= 4.0 && !interactiveTriggered) {
+          interactiveTriggered = true;
+          video.pause();
+          choiceBox.style.display = 'flex';
+        }
+      };
+      video.ontimeupdate = timeCheckHandler;
+
+      document.getElementById('choice-1').onclick = () => {
+        video.ontimeupdate = null;
+        choiceBox.style.display = 'none';
+        
+        video.src = "poder.mp4";
+        video.currentTime = 0;
+        video.play();
+
+        video.onended = () => {
+          overlay.classList.add('hidden');
+          if (onCompleteCallback) onCompleteCallback();
+        };
+      };
+
+      document.getElementById('choice-2').onclick = () => {
+        video.ontimeupdate = null;
+        choiceBox.style.display = 'none';
+        video.play();
+
+        video.onended = () => {
+          overlay.classList.add('hidden');
+          if (onCompleteCallback) onCompleteCallback();
+        };
+      };
+
+      document.getElementById('skip-cutscene-btn').onclick = () => {
+        video.ontimeupdate = null;
+        choiceBox.style.display = 'none';
         video.pause();
         overlay.classList.add('hidden');
-        video.removeEventListener('ended', finishCutscene);
-        document.getElementById('skip-cutscene-btn').removeEventListener('click', finishCutscene);
         if (onCompleteCallback) onCompleteCallback();
-      }
-
-      video.addEventListener('ended', finishCutscene);
-      document.getElementById('skip-cutscene-btn').onclick = finishCutscene;
+      };
     }
 
     window.addEventListener('keydown', e => {
@@ -981,10 +1048,9 @@
     setupTouch('btn-right', 'right');
     setupTouch('btn-jump', 'jump');
 
-    /* BOTÓN DE INICIO CON INTEGRACIÓN DE CINEMÁTICA */
     document.getElementById('start-btn').addEventListener('click', () => {
       sound.init();
-      showOverlay(null); // Ocultar menú principal
+      showOverlay(null);
       
       playCutscene(() => {
         sound.startMusic();
